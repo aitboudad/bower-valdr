@@ -240,6 +240,27 @@ angular.module('valdr')
 
 angular.module('valdr')
 
+  .factory('valdrEqualsFieldValidator', [function () {
+
+    return {
+      name: 'equalsField',
+
+      /**
+       * Checks if the matches another fields value.
+       *
+       * @param value the value to validate
+       * @param constraint the constraint paramters
+       * @param formValues the whole form
+       * @returns {boolean} true if valid
+       */
+      validate: function (value, constraint, formValues) {
+        return (value === formValues[constraint.field]) || (!value && !formValues[constraint.field]);
+      }
+    };
+  }]);
+
+angular.module('valdr')
+
   .factory('valdrUrlValidator', ['valdrUtil', function (valdrUtil) {
 
     // the url pattern used in angular.js
@@ -627,9 +648,10 @@ angular.module('valdr')
              * @param typeName the type name
              * @param fieldName the field name
              * @param value the value to validate
+             * @param formValues the whole form
              * @returns {*}
              */
-            validate: function (typeName, fieldName, value) {
+            validate: function (typeName, fieldName, value, formValues) {
 
               var validResult = { valid: true },
                 typeConstraints = constraintsForType(typeName);
@@ -649,7 +671,7 @@ angular.module('valdr')
                     return validResult;
                   }
 
-                  var valid = validator.validate(value, constraint);
+                  var valid = validator.validate(value, constraint, formValues);
                   var validationResult = {
                     valid: valid,
                     value: value,
@@ -693,6 +715,7 @@ angular.module('valdr')
           };
         }];
   });
+
 /**
  * This directive adds the validity state to a form group element surrounding valdr validated input fields.
  * If valdr-messages is loaded, it also adds the validation messages as last element to the element this this
@@ -700,7 +723,7 @@ angular.module('valdr')
  */
 var valdrFormGroupDirectiveDefinition =
   ['valdrClasses', 'valdrConfig', function (valdrClasses, valdrConfig) {
-    return  {
+    return {
       restrict: 'EA',
       link: function (scope, element) {
         if (valdrConfig.addFormGroupClass) {
@@ -793,7 +816,9 @@ var valdrFormGroupDirectiveDefinition =
         };
 
         this.removeMessageElement = function (ngModelController) {
-          messageElements[ngModelController.$name].remove();
+          if (messageElements[ngModelController.$name]) {
+            messageElements[ngModelController.$name].remove();
+          }
         };
 
       }]
@@ -802,6 +827,7 @@ var valdrFormGroupDirectiveDefinition =
 
 angular.module('valdr')
   .directive('valdrFormGroup', valdrFormGroupDirectiveDefinition);
+
 angular.module('valdr')
 
 /**
@@ -809,12 +835,30 @@ angular.module('valdr')
  * The directive exposes the type through the controller to allow access to it by wrapped directives.
  */
   .directive('valdrType', function () {
-    return  {
+    return {
       priority: 1,
       controller: ['$attrs', function ($attrs) {
 
+        var fields = {};
+
         this.getType = function () {
           return $attrs.valdrType;
+        };
+
+        this.getValue = function (fieldName) {
+          return fields[fieldName]();
+        };
+
+        this.getValues = function () {
+          var result = {};
+          angular.forEach(fields, function(field, name) {
+            result[name] = field();
+          });
+          return result;
+        };
+
+        this.registerField = function(name, field) {
+          fields[name] = field;
         };
 
       }]
@@ -873,6 +917,10 @@ var valdrFormItemDirectiveDefinitionFactory = function (restrict) {
             throw new Error('Form element with ID "' + attrs.id + '" is not bound to a field name.');
           }
 
+          valdrTypeController.registerField(fieldName, function () {
+            return ngModelController.$modelValue;
+          });
+
           var updateNgModelController = function (validationResult) {
 
             if (valdrEnabled.isEnabled()) {
@@ -906,7 +954,7 @@ var valdrFormItemDirectiveDefinitionFactory = function (restrict) {
           };
 
           var validate = function (modelValue) {
-            var validationResult = valdr.validate(valdrTypeController.getType(), fieldName, modelValue);
+            var validationResult = valdr.validate(valdrTypeController.getType(), fieldName, modelValue, valdrTypeController.getValues());
             updateNgModelController(validationResult);
             return valdrEnabled.isEnabled() ? validationResult.valid : true;
           };
