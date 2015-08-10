@@ -907,7 +907,7 @@ var valdrFormItemDirectiveDefinitionFactory = function (restrict) {
            * - there is no ng-model bound to input
            * - there is the 'valdr-no-validate' attribute present
            */
-          if (!valdrTypeController || !ngModelController || angular.isDefined(valdrNoValidate)) {
+          if (!valdrTypeController || !ngModelController || angular.isDefined(valdrNoValidate) || angular.isUndefined(fieldName) ) {
             return;
           }
 
